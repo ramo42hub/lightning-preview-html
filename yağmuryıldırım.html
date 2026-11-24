@@ -280,7 +280,7 @@
             }
             this.ctx = new AudioContextClass();
             this.masterGain = this.ctx.createGain();
-            this.masterGain.gain.value = 0.42;
+            this.masterGain.gain.value = 0.72;
             this.masterGain.connect(this.ctx.destination);
             this.initialized = true;
             return true;
@@ -304,9 +304,37 @@
             state.soundEnabled = true;
             updateSoundUI();
             hideNotice();
+            this.playTestSound();
           } else {
             state.soundEnabled = false;
             updateSoundUI();
+          }
+        },
+
+        playTestSound() {
+          if (!this.initialized || !this.ctx) return;
+          try {
+            const now = this.ctx.currentTime;
+            const buffer = this.ctx.createBuffer(1, this.ctx.sampleRate * 0.18, this.ctx.sampleRate);
+            const data = buffer.getChannelData(0);
+            for (let i = 0; i < data.length; i++) {
+              const decay = 1 - i / data.length;
+              data[i] = (Math.random() * 2 - 1) * decay;
+            }
+            const source = this.ctx.createBufferSource();
+            source.buffer = buffer;
+            const filter = this.ctx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.value = 180;
+            const gain = this.ctx.createGain();
+            gain.gain.setValueAtTime(0.18, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            source.connect(filter);
+            filter.connect(gain);
+            gain.connect(this.masterGain);
+            source.start(now);
+          } catch (err) {
+            showNotice('Ses testinde sorun oluştu.');
           }
         },
 
