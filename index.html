@@ -1,0 +1,1053 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <!-- Mobil ve masaüstü uyumluluk için görünüm alanı ayarları -->
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gerçekçi Atmosferik Yıldırım Simülasyonu</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Inter Yazı Tipi -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* Temel sıfırlama ve koyu atmosferik zemin */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #070a0f;
+      color: #e2e8f0;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+
+    /* Tam ekran uyumlu tuval */
+    #lightningCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+      touch-action: none;
+    }
+
+    /* İnce, doğal görünümlü kaydırıcı stili */
+    input[type="range"].storm-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
+      background: rgba(148, 163, 184, 0.22);
+      border-radius: 999px;
+      outline: none;
+    }
+
+    input[type="range"].storm-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      border: 2px solid #0f172a;
+      cursor: pointer;
+      transition: transform 0.15s ease, background-color 0.15s ease;
+    }
+
+    input[type="range"].storm-slider::-webkit-slider-thumb:hover {
+      transform: scale(1.15);
+      background: #f8fafc;
+    }
+
+    input[type="range"].storm-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: #cbd5e1;
+      border: 2px solid #0f172a;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <!-- Ana Yıldırım ve Atmosfer Tuvali -->
+  <canvas id="lightningCanvas" aria-label="Atmosferik yıldırım simülasyon alanı"></canvas>
+
+  <!-- Minimal Kontrol Paneli Açma/Kapama Düğmesi -->
+  <div class="fixed top-4 right-4 z-20 flex items-center gap-2">
+    <button
+      id="togglePanelBtn"
+      type="button"
+      class="px-3.5 py-2 rounded-xl bg-slate-900/75 hover:bg-slate-800/85 active:scale-[0.99] text-slate-200 text-xs font-medium tracking-wide border border-slate-700/60 backdrop-blur-md shadow-lg transition flex items-center gap-2"
+      aria-expanded="true"
+      aria-controls="controlPanel"
+    >
+      <span id="panelStatusDot" class="w-2 h-2 rounded-full bg-sky-400/80"></span>
+      <span id="togglePanelLabel">Kontroller</span>
+    </button>
+  </div>
+
+  <!-- Minimal, Şeffaf Fırtına Kontrol Paneli -->
+  <aside
+    id="controlPanel"
+    class="fixed bottom-4 left-1/2 -translate-x-1/2 sm:left-auto sm:translate-x-0 sm:top-16 sm:bottom-auto sm:right-4 z-20 w-[calc(100%-2rem)] max-w-xs sm:w-72 rounded-2xl bg-slate-950/75 border border-slate-800/75 backdrop-blur-md p-4 shadow-2xl transition-all duration-200"
+  >
+    <div class="flex items-center justify-between mb-3">
+      <span class="text-[11px] uppercase tracking-widest text-slate-400 font-medium">Fırtına Parametreleri</span>
+      <span id="strikeCounter" class="text-[11px] text-slate-500 tabular-nums">0 çakma</span>
+    </div>
+
+    <!-- Ana Eylemler: Çakma Tetikleme & Otomatik Fırtına -->
+    <div class="grid grid-cols-2 gap-2 mb-3.5">
+      <button
+        id="triggerStrikeBtn"
+        type="button"
+        class="p-2.5 rounded-xl bg-slate-800/80 hover:bg-slate-700/85 active:scale-[0.98] text-slate-100 text-xs font-medium border border-slate-700/70 transition flex items-center justify-center gap-1.5"
+      >
+        <svg class="w-3.5 h-3.5 text-sky-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M13 2L4 14h7l-1 8 9-12h-7l1-8z" stroke-linejoin="round" />
+        </svg>
+        <span>Çakma Tetikle</span>
+      </button>
+
+      <button
+        id="autoStormBtn"
+        type="button"
+        class="p-2.5 rounded-xl bg-sky-950/60 hover:bg-sky-900/60 active:scale-[0.98] text-sky-200 text-xs font-medium border border-sky-700/50 transition flex items-center justify-center gap-1.5"
+      >
+        <span id="autoStormIndicator" class="w-2 h-2 rounded-full bg-sky-400"></span>
+        <span>Oto Fırtına</span>
+      </button>
+    </div>
+
+    <!-- Yağmur ve Gök Gürültüsü Anahtarları -->
+    <div class="grid grid-cols-2 gap-2 mb-4">
+      <button
+        id="rainToggleBtn"
+        type="button"
+        class="p-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/75 text-slate-300 text-xs border border-slate-800 transition flex items-center justify-center gap-1.5"
+      >
+        <svg class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M12 3v3m5.5 1.5l-2 2m-7-2l2 2M6 15a6 6 0 0112 0c0 2.5-1.5 4-3 5h-6c-1.5-1-3-2.5-3-5z" stroke-linecap="round" />
+        </svg>
+        <span id="rainLabel">Yağmur: Açık</span>
+      </button>
+
+      <button
+        id="soundToggleBtn"
+        type="button"
+        class="p-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/75 text-slate-300 text-xs border border-slate-800 transition flex items-center justify-center gap-1.5"
+      >
+        <svg id="soundIcon" class="w-3.5 h-3.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+          <path d="M11 5L6 9H2v6h4l5 4V5z" stroke-linejoin="round" />
+          <path d="M15.54 8.46a5 5 0 010 7.07M19.07 4.93a10 10 0 010 14.14" stroke-linecap="round" />
+        </svg>
+        <span id="soundLabel">Ses: Kapalı</span>
+      </button>
+    </div>
+
+    <!-- Yoğunluk / Sıklık Kaydırıcısı -->
+    <div class="mb-3">
+      <div class="flex justify-between text-xs text-slate-300 mb-1.5">
+        <span>Fırtına Yoğunluğu / Sıklığı</span>
+        <span id="intensityValue" class="text-slate-400 tabular-nums">60%</span>
+      </div>
+      <input
+        id="intensitySlider"
+        type="range"
+        min="10"
+        max="100"
+        value="60"
+        class="storm-slider"
+        aria-label="Fırtına yoğunluğu ve sıklığı"
+      />
+    </div>
+
+    <!-- Atmosfer Tonu Seçimi (Soğuk Mavi-Beyaz vs Ilık Gri Kapalı Hava) -->
+    <div>
+      <div class="flex justify-between text-xs text-slate-300 mb-1.5">
+        <span>Gökyüzü Işık Tonu</span>
+        <span id="toneLabel" class="text-slate-400">Soğuk Fırtına</span>
+      </div>
+      <div class="grid grid-cols-2 gap-1.5 bg-slate-900/90 p-1 rounded-xl border border-slate-800/80">
+        <button
+          id="toneCoolBtn"
+          type="button"
+          class="py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-100 transition"
+        >
+          Soğuk Mavi-Beyaz
+        </button>
+        <button
+          id="toneWarmBtn"
+          type="button"
+          class="py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 transition"
+        >
+          Ilık Kapalı Gri
+        </button>
+      </div>
+    </div>
+
+    <!-- Hata veya Bilgilendirme Mesaj Kutusu (alert yerine) -->
+    <div
+      id="messageBox"
+      class="hidden mt-3 p-2.5 rounded-xl bg-amber-950/50 border border-amber-800/50 text-amber-200 text-[11px] leading-relaxed"
+      role="status"
+    ></div>
+  </aside>
+
+  <script>
+    /**
+     * Gerçekçi Atmosferik Yıldırım Simülasyonu
+     * - Orta nokta yer değiştirme (midpoint displacement) ile dallanan adım liderleri
+     * - Ana kanal, ikincil ve üçüncül çatallarda doğal kalınlık daralması
+     * - Dönüş darbesi (return stroke) kısa aydınlanma zirvesi ve iyonize kanal sönümlemesi
+     * - Bulut tabanı aydınlanması ve çevresel gökyüzü ışık geçişleri
+     * - İsteğe bağlı hafif yağmur çizgileri ve Web Audio API düşük frekanslı gök gürültüsü
+     */
+
+    (function () {
+      'use strict';
+
+      // DOM eleman referansları
+      const canvas = document.getElementById('lightningCanvas');
+      const ctx = canvas.getContext('2d', { alpha: false });
+
+      const togglePanelBtn = document.getElementById('togglePanelBtn');
+      const togglePanelLabel = document.getElementById('togglePanelLabel');
+      const panelStatusDot = document.getElementById('panelStatusDot');
+      const controlPanel = document.getElementById('controlPanel');
+      const strikeCounter = document.getElementById('strikeCounter');
+
+      const triggerStrikeBtn = document.getElementById('triggerStrikeBtn');
+      const autoStormBtn = document.getElementById('autoStormBtn');
+      const autoStormIndicator = document.getElementById('autoStormIndicator');
+      const rainToggleBtn = document.getElementById('rainToggleBtn');
+      const rainLabel = document.getElementById('rainLabel');
+      const soundToggleBtn = document.getElementById('soundToggleBtn');
+      const soundLabel = document.getElementById('soundLabel');
+      const intensitySlider = document.getElementById('intensitySlider');
+      const intensityValue = document.getElementById('intensityValue');
+      const toneCoolBtn = document.getElementById('toneCoolBtn');
+      const toneWarmBtn = document.getElementById('toneWarmBtn');
+      const messageBox = document.getElementById('messageBox');
+
+      // Simülasyon durumu
+      const state = {
+        width: 0,
+        height: 0,
+        dpr: 1,
+        autoStorm: true,
+        rainEnabled: true,
+        soundEnabled: false,
+        intensity: 0.6, // 0.1 - 1.0 arası normalize edilmiş yoğunluk
+        tone: 'cool', // 'cool' (soğuk mavi-beyaz) veya 'warm' (ılık gri kapalı hava)
+        panelOpen: true,
+        strikeCount: 0,
+        nextAutoStrikeTime: 0,
+        ambientFlash: 0, // 0..1 arası mevcut çevresel gökyüzü parlaklığı
+        flashOriginX: 0.5, // 0..1 yatay konum
+        flashOriginY: 0.2, // 0..1 dikey konum
+        activeBolts: [],
+        rainDrops: [],
+        lastFrameTime: performance.now()
+      };
+
+      // Web Audio API ses motoru (yalnızca kullanıcı etkileşimiyle başlatılır)
+      const thunderAudio = {
+        ctx: null,
+        masterGain: null,
+        initialized: false,
+
+        init() {
+          try {
+            if (this.initialized) {
+              if (this.ctx && this.ctx.state === 'suspended') {
+                this.ctx.resume();
+              }
+              return true;
+            }
+            const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContextClass) {
+              showNotice('Tarayıcınız Web Audio API desteklemiyor; ses üretilemedi.');
+              return false;
+            }
+            this.ctx = new AudioContextClass();
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.value = 0.42;
+            this.masterGain.connect(this.ctx.destination);
+            this.initialized = true;
+            return true;
+          } catch (err) {
+            showNotice('Ses bağlamı başlatılırken bir sorun oluştu.');
+            return false;
+          }
+        },
+
+        setEnabled(enabled) {
+          if (!enabled) {
+            state.soundEnabled = false;
+            updateSoundUI();
+            return;
+          }
+          const ok = this.init();
+          if (ok) {
+            if (this.ctx.state === 'suspended') {
+              this.ctx.resume().catch(() => {});
+            }
+            state.soundEnabled = true;
+            updateSoundUI();
+            hideNotice();
+          } else {
+            state.soundEnabled = false;
+            updateSoundUI();
+          }
+        },
+
+        /**
+         * Mesafe ve yoğunluğa göre gecikmeli, doğal düşük frekanslı gök gürültüsü üretir.
+         * Pembe/kahverengi gürültü + düşük geçişli filtre + yavaş sönümleme kullanır.
+         */
+        triggerThunder(distanceRatio = 0.5, intensity = 0.6) {
+          if (!state.soundEnabled || !this.initialized || !this.ctx) return;
+          try {
+            if (this.ctx.state === 'suspended') {
+              this.ctx.resume();
+            }
+
+            const now = this.ctx.currentTime;
+            // Gerçek hayatta ışık ses hızından çok daha hızlı ulaşır: mesafeye göre 0.15s - 1.8s gecikme
+            const delay = 0.15 + distanceRatio * 1.65;
+            const startTime = now + delay;
+            const duration = 2.4 + intensity * 2.8 + Math.random() * 1.2;
+
+            // 1 saniyelik kahverengi/pembe gürültü tamponu oluştur
+            const sampleRate = this.ctx.sampleRate;
+            const length = Math.floor(sampleRate * duration);
+            const buffer = this.ctx.createBuffer(1, length, sampleRate);
+            const data = buffer.getChannelData(0);
+
+            let lastOut = 0.0;
+            let b0 = 0, b1 = 0, b2 = 0;
+            for (let i = 0; i < length; i++) {
+              const white = Math.random() * 2 - 1;
+              // Kahverengi gürültü bileşeni (derin uğultu)
+              lastOut = (lastOut + 0.025 * white) / 1.025;
+              // Pembe gürültü bileşeni (doğal hava çatırtısı/gürlemesi)
+              b0 = 0.99765 * b0 + white * 0.0990460;
+              b1 = 0.96300 * b1 + white * 0.2965164;
+              b2 = 0.57000 * b2 + white * 1.0526913;
+              const pink = (b0 + b1 + b2 + white * 0.1848) * 0.08;
+
+              // Uzak yansımalar için hafif doğal dalgalanma
+              const rollMod = 0.72 + 0.28 * Math.sin((i / sampleRate) * 7.5 + distanceRatio * 5);
+              data[i] = (lastOut * 2.8 + pink) * rollMod;
+            }
+
+            const noiseSource = this.ctx.createBufferSource();
+            noiseSource.buffer = buffer;
+
+            // Düşük geçişli filtre: tiz sesleri keserek gerçekçi gök gürültüsü karakteri verir
+            const lowpass = this.ctx.createBiquadFilter();
+            lowpass.type = 'lowpass';
+            const baseFreq = 95 + intensity * 75 + (1 - distanceRatio) * 45;
+            lowpass.frequency.setValueAtTime(baseFreq * 1.6, startTime);
+            lowpass.frequency.exponentialRampToValueAtTime(48, startTime + duration);
+            lowpass.Q.value = 0.85;
+
+            // Çok düşük sub-bas titreşimi (yakın çakmalarda hissedilir ağırlık)
+            const subOsc = this.ctx.createOscillator();
+            subOsc.type = 'sine';
+            subOsc.frequency.setValueAtTime(46 + Math.random() * 12, startTime);
+            subOsc.frequency.exponentialRampToValueAtTime(26, startTime + Math.min(duration, 2.2));
+
+            const subGain = this.ctx.createGain();
+            const closeness = 1 - Math.min(0.85, distanceRatio);
+            const peakGain = (0.14 + intensity * 0.22) * (0.45 + closeness * 0.65);
+
+            // Zarf (attack -> yuvarlanan gürleme -> uzun kuyruk)
+            const rumbleGain = this.ctx.createGain();
+            rumbleGain.gain.setValueAtTime(0.0001, now);
+            rumbleGain.gain.setValueAtTime(0.0001, startTime);
+            rumbleGain.gain.linearRampToValueAtTime(peakGain, startTime + 0.12 + distanceRatio * 0.25);
+            rumbleGain.gain.setValueAtTime(peakGain * 0.75, startTime + duration * 0.35);
+            rumbleGain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+            subGain.gain.setValueAtTime(0.0001, now);
+            subGain.gain.setValueAtTime(0.0001, startTime);
+            subGain.gain.linearRampToValueAtTime(peakGain * 0.45 * closeness, startTime + 0.14);
+            subGain.gain.exponentialRampToValueAtTime(0.0001, startTime + Math.min(duration, 2.1));
+
+            noiseSource.connect(lowpass);
+            lowpass.connect(rumbleGain);
+            rumbleGain.connect(this.masterGain);
+
+            subOsc.connect(subGain);
+            subGain.connect(this.masterGain);
+
+            noiseSource.start(startTime);
+            noiseSource.stop(startTime + duration + 0.05);
+
+            subOsc.start(startTime);
+            subOsc.stop(startTime + Math.min(duration, 2.25) + 0.05);
+          } catch (err) {
+            // Ses zamanlama hatalarının animasyonu durdurmasını engelle
+          }
+        }
+      };
+
+      // Yardımcı bildirim fonksiyonları
+      function showNotice(msg) {
+        messageBox.textContent = msg;
+        messageBox.classList.remove('hidden');
+      }
+
+      function hideNotice() {
+        messageBox.classList.add('hidden');
+        messageBox.textContent = '';
+      }
+
+      /**
+       * Ekran boyutuna ve cihaz piksel oranına göre tuvali ölçekler.
+       */
+      function resizeCanvas() {
+        try {
+          state.dpr = Math.min(window.devicePixelRatio || 1, 2);
+          state.width = window.innerWidth;
+          state.height = window.innerHeight;
+
+          canvas.width = Math.floor(state.width * state.dpr);
+          canvas.height = Math.floor(state.height * state.dpr);
+          ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+
+          initRainDrops();
+        } catch (err) {
+          showNotice('Tuval boyutu güncellenirken hata oluştu.');
+        }
+      }
+
+      /**
+       * Hafif, doğal yağmur damlalarını ekran boyutuna göre oluşturur.
+       */
+      function initRainDrops() {
+        const area = state.width * state.height;
+        const targetCount = Math.min(180, Math.max(45, Math.floor(area / 8500)));
+        state.rainDrops = [];
+
+        for (let i = 0; i < targetCount; i++) {
+          state.rainDrops.push({
+            x: Math.random() * state.width,
+            y: Math.random() * state.height,
+            length: 10 + Math.random() * 16,
+            speed: 420 + Math.random() * 340,
+            wind: -55 - Math.random() * 45,
+            alpha: 0.08 + Math.random() * 0.14
+          });
+        }
+      }
+
+      /**
+       * İki nokta arasında orta nokta yer değiştirme (midpoint displacement) ile
+       * kırıklı ve doğal bir yol üretir. Aşırı simetrik zikzaklardan kaçınmak için
+       * rastgele sapma ve hafif yön sürüklenmesi uygular.
+       */
+      function generateJaggedPath(x1, y1, x2, y2, iterations, initialDisplacement, roughness = 0.56) {
+        let points = [
+          { x: x1, y: y1 },
+          { x: x2, y: y2 }
+        ];
+
+        let disp = initialDisplacement;
+
+        for (let step = 0; step < iterations; step++) {
+          const nextPoints = [points[0]];
+
+          for (let i = 0; i < points.length - 1; i++) {
+            const pA = points[i];
+            const pB = points[i + 1];
+
+            const dx = pB.x - pA.x;
+            const dy = pB.y - pA.y;
+            const len = Math.hypot(dx, dy) || 1;
+
+            // Segment doğrultusuna dik birim vektör
+            const nx = -dy / len;
+            const ny = dx / len;
+
+            // Orta noktaya hafif doğal oran kayması (tam 0.5 yerine 0.42 - 0.58)
+            const t = 0.42 + Math.random() * 0.16;
+            const offset = (Math.random() * 2 - 1) * disp;
+
+            // Kırıkların dik eksen dışında yatay/dikey hafif sapması
+            const jitterAlong = (Math.random() - 0.5) * disp * 0.18;
+
+            const midX = pA.x + dx * t + nx * offset + (dx / len) * jitterAlong;
+            const midY = pA.y + dy * t + ny * offset + (dy / len) * jitterAlong;
+
+            nextPoints.push({ x: midX, y: midY });
+            nextPoints.push(pB);
+          }
+
+          points = nextPoints;
+          disp *= roughness;
+        }
+
+        return points;
+      }
+
+      /**
+       * Bir ana kanaldan ikincil ve üçüncül doğal çatallar türetir.
+       * Çatallar ana kanaldan daha ince, daha kısa ve aşağı/dışa doğru sönümlenen şekildedir.
+       */
+      function buildBranches(mainPoints, baseWidth) {
+        const branches = [];
+        const startIdx = Math.max(2, Math.floor(mainPoints.length * 0.14));
+        const endIdx = Math.floor(mainPoints.length * 0.82);
+
+        for (let i = startIdx; i < endIdx; i++) {
+          // Her düğümde ikincil çatal olasılığı
+          if (Math.random() < 0.24) {
+            const origin = mainPoints[i];
+            const progress = i / mainPoints.length;
+
+            // Çatalın yatay yönü ve aşağı doğru eğimi
+            const dirX = (Math.random() < 0.5 ? -1 : 1) * (0.45 + Math.random() * 0.65);
+            const branchLength = (state.height * (0.11 + Math.random() * 0.18)) * (1 - progress * 0.35);
+
+            const endX = origin.x + dirX * branchLength;
+            const endY = Math.min(state.height * 0.96, origin.y + branchLength * (0.65 + Math.random() * 0.55));
+
+            const secondaryWidth = Math.max(0.55, baseWidth * (0.34 + Math.random() * 0.14) * (1 - progress * 0.3));
+            const secondaryPoints = generateJaggedPath(
+              origin.x,
+              origin.y,
+              endX,
+              endY,
+              4,
+              branchLength * 0.19,
+              0.55
+            );
+
+            branches.push({
+              points: secondaryPoints,
+              width: secondaryWidth,
+              level: 2,
+              alphaScale: 0.72
+            });
+
+            // İkincil çataldan üçüncül ince çatal olasılığı
+            if (secondaryPoints.length >= 5 && Math.random() < 0.42) {
+              const subOriginIndex = Math.floor(secondaryPoints.length * (0.35 + Math.random() * 0.35));
+              const subOrigin = secondaryPoints[subOriginIndex];
+              const subLen = branchLength * (0.38 + Math.random() * 0.28);
+              const subEndX = subOrigin.x + dirX * subLen * (0.7 + Math.random() * 0.6);
+              const subEndY = Math.min(state.height * 0.96, subOrigin.y + subLen * (0.6 + Math.random() * 0.5));
+
+              const tertiaryPoints = generateJaggedPath(
+                subOrigin.x,
+                subOrigin.y,
+                subEndX,
+                subEndY,
+                3,
+                subLen * 0.22,
+                0.54
+              );
+
+              branches.push({
+                points: tertiaryPoints,
+                width: Math.max(0.35, secondaryWidth * 0.45),
+                level: 3,
+                alphaScale: 0.48
+              });
+            }
+          }
+        }
+
+        return branches;
+      }
+
+      /**
+       * Tek bir yıldırım çakması nesnesi oluşturur.
+       * Bulut içi/bulutlar arası deşarj veya buluttan yere lider + dönüş darbesi içerebilir.
+       */
+      function createLightningBolt(customStartX = null, customEndX = null) {
+        try {
+          const isCloudToGround = Math.random() < 0.76;
+
+          const startX =
+            customStartX !== null
+              ? customStartX
+              : state.width * (0.15 + Math.random() * 0.7);
+          const startY = -6;
+
+          let endX;
+          let endY;
+
+          if (isCloudToGround) {
+            endX =
+              customEndX !== null
+                ? customEndX
+                : Math.max(
+                    state.width * 0.06,
+                    Math.min(state.width * 0.94, startX + (Math.random() - 0.5) * state.width * 0.34)
+                  );
+            endY = state.height * (0.76 + Math.random() * 0.22);
+          } else {
+            // Bulutlar arası / bulut içi yayılan deşarj
+            endX = Math.max(
+              state.width * 0.08,
+              Math.min(state.width * 0.92, startX + (Math.random() - 0.5) * state.width * 0.55)
+            );
+            endY = state.height * (0.28 + Math.random() * 0.36);
+          }
+
+          // Ana kanal kalınlığı: doğal ve dengeli (aşırı kalın tüpler yerine gerçekçi çekirdek)
+          const mainWidth = (1.6 + Math.random() * 1.4) * (0.8 + state.intensity * 0.45);
+          const mainPoints = generateJaggedPath(
+            startX,
+            startY,
+            endX,
+            endY,
+            6,
+            Math.min(state.width, state.height) * 0.14,
+            0.57
+          );
+
+          const branches = buildBranches(mainPoints, mainWidth);
+
+          // Bazı çakmalarda milisaniyelik ikincil dönüş darbesi (restrike) bulunur
+          const hasRestrike = isCloudToGround && Math.random() < 0.48;
+          const restrikeTime = 0.055 + Math.random() * 0.065;
+
+          const bolt = {
+            mainPoints,
+            mainWidth,
+            branches,
+            age: 0,
+            // Kısa keskin parlamayı takiben iyonize kanalın yumuşak sönümü
+            maxLife: 0.42 + Math.random() * 0.24,
+            peakFlash: (isCloudToGround ? 0.82 : 0.46) * (0.65 + state.intensity * 0.5),
+            hasRestrike,
+            restrikeTime,
+            restrikeTriggered: false,
+            isCloudToGround
+          };
+
+          state.activeBolts.push(bolt);
+          state.strikeCount += 1;
+          strikeCounter.textContent = `${state.strikeCount} çakma`;
+
+          // Gökyüzü ve bulut tabanı aydınlanmasını tetikle
+          state.flashOriginX = Math.max(0.05, Math.min(0.95, startX / Math.max(1, state.width)));
+          state.flashOriginY = Math.max(0.05, Math.min(0.65, endY / Math.max(1, state.height) * 0.55));
+          state.ambientFlash = Math.min(1, Math.max(state.ambientFlash, bolt.peakFlash));
+
+          // Yatay konuma göre yaklaşık mesafe oranı ve gök gürültüsü
+          const distRatio = Math.abs(endX / Math.max(1, state.width) - 0.5) * 1.4 + (isCloudToGround ? 0.15 : 0.55);
+          thunderAudio.triggerThunder(Math.min(1, distRatio), state.intensity);
+        } catch (err) {
+          showNotice('Yıldırım yolu oluşturulurken beklenmeyen bir hata oluştu.');
+        }
+      }
+
+      /**
+       * Seçili atmosfer tonuna göre RGB renk bileşenlerini döndürür.
+       */
+      function getTonePalette() {
+        if (state.tone === 'warm') {
+          return {
+            skyTop: '14, 15, 18',
+            skyMid: '24, 25, 29',
+            cloudGlow: '226, 222, 214',
+            channelCore: '252, 250, 246',
+            channelSheath: '205, 202, 194',
+            channelHalo: '165, 162, 154'
+          };
+        }
+        // Varsayılan: Soğuk mavi-beyaz doğal fırtına tonu
+        return {
+          skyTop: '7, 10, 16',
+          skyMid: '13, 20, 32',
+          cloudGlow: '188, 212, 242',
+          channelCore: '244, 249, 255',
+          channelSheath: '176, 205, 240',
+          channelHalo: '118, 156, 208'
+        };
+      }
+
+      /**
+       * Konik/daralan kalınlıkla tek bir çoklu-noktalı kanal çizer.
+       * Başlangıçtan uca doğru kademeli incelme sağlar.
+       */
+      function drawTaperedPolyline(points, startWidth, endWidth, strokeStyle, alpha) {
+        if (!points || points.length < 2 || alpha <= 0.005) return;
+
+        ctx.save();
+        ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+        ctx.strokeStyle = strokeStyle;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        const totalSegments = points.length - 1;
+        for (let i = 0; i < totalSegments; i++) {
+          const t0 = i / totalSegments;
+          const t1 = (i + 1) / totalSegments;
+          const width = startWidth * (1 - t0) + endWidth * t0;
+
+          // Her adımda hafifçe incelen parça
+          ctx.lineWidth = Math.max(0.25, width * (1 - t1 * 0.18));
+          ctx.beginPath();
+          ctx.moveTo(points[i].x, points[i].y);
+          ctx.lineTo(points[i + 1].x, points[i + 1].y);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      /**
+       * Bulut katmanı ve gökyüzü arka planını çizer.
+       * Yıldırım sırasında bulut altlarında doğal ışık yayılımı oluşturur.
+       */
+      function renderAtmosphere(palette) {
+        // Koyu fırtına gökyüzü gradyanı
+        const bgGrad = ctx.createLinearGradient(0, 0, 0, state.height);
+        bgGrad.addColorStop(0, `rgb(${palette.skyTop})`);
+        bgGrad.addColorStop(0.55, `rgb(${palette.skyMid})`);
+        bgGrad.addColorStop(1, `rgb(${palette.skyTop})`);
+        ctx.fillStyle = bgGrad;
+        ctx.fillRect(0, 0, state.width, state.height);
+
+        // Bulut tabanı aydınlanması (çakma anında yumuşak doğal yayılım)
+        if (state.ambientFlash > 0.004) {
+          const cx = state.width * state.flashOriginX;
+          const cy = state.height * (0.14 + state.flashOriginY * 0.35);
+          const radius = Math.max(state.width, state.height) * (0.55 + state.ambientFlash * 0.25);
+
+          const flashGrad = ctx.createRadialGradient(cx, cy, radius * 0.04, cx, cy, radius);
+          const peak = Math.min(0.34, state.ambientFlash * 0.28);
+          flashGrad.addColorStop(0, `rgba(${palette.cloudGlow}, ${peak.toFixed(4)})`);
+          flashGrad.addColorStop(0.45, `rgba(${palette.cloudGlow}, ${(peak * 0.42).toFixed(4)})`);
+          flashGrad.addColorStop(1, `rgba(${palette.cloudGlow}, 0)`);
+
+          ctx.fillStyle = flashGrad;
+          ctx.fillRect(0, 0, state.width, state.height);
+        }
+
+        // Üst kısımda yumuşak, alçak kontrastlı bulut kütleleri
+        ctx.save();
+        const cloudCount = 6;
+        for (let i = 0; i < cloudCount; i++) {
+          const ratio = i / (cloudCount - 1);
+          const cloudX = state.width * (0.08 + ratio * 0.84);
+          const cloudY = state.height * (0.04 + Math.sin(i * 1.7) * 0.035);
+          const rx = state.width * (0.18 + (i % 2) * 0.07);
+          const ry = state.height * (0.065 + (i % 3) * 0.02);
+
+          const cloudBrightness = 0.04 + state.ambientFlash * 0.14;
+          const cGrad = ctx.createRadialGradient(cloudX, cloudY, rx * 0.1, cloudX, cloudY, rx);
+          cGrad.addColorStop(0, `rgba(${palette.cloudGlow}, ${cloudBrightness.toFixed(4)})`);
+          cGrad.addColorStop(1, `rgba(${palette.cloudGlow}, 0)`);
+
+          ctx.fillStyle = cGrad;
+          ctx.beginPath();
+          ctx.ellipse(cloudX, cloudY, rx, ry, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.restore();
+      }
+
+      /**
+       * Aktif yıldırım kanallarını çizer:
+       * 1. Çok ince dış iyonize hale (abartısız, doğal dağılım)
+       * 2. Orta kılıf parlaklığı
+       * 3. Keskin, ince sıcak-beyaz / soğuk-beyaz çekirdek
+       */
+      function renderBolts(palette) {
+        for (let i = state.activeBolts.length - 1; i >= 0; i--) {
+          const bolt = state.activeBolts[i];
+          const progress = bolt.age / bolt.maxLife;
+
+          if (progress >= 1) {
+            state.activeBolts.splice(i, 1);
+            continue;
+          }
+
+          // Dönüş darbesi zirvesi ve ardından doğal iyonize kanal sönümü
+          let intensityCurve;
+          if (progress < 0.08) {
+            // Çok hızlı ilk darbe yükselmesi
+            intensityCurve = progress / 0.08;
+          } else if (progress < 0.24) {
+            // Kısa parlak dönüş darbesi aşaması
+            intensityCurve = 1 - (progress - 0.08) * 1.4;
+          } else {
+            // İyonize kanalın kademeli, yumuşak sönümü
+            const tailProgress = (progress - 0.24) / 0.76;
+            intensityCurve = Math.max(0, 0.77 * Math.pow(1 - tailProgress, 1.85));
+          }
+
+          // İkincil restrike anında kısa ek darbe
+          if (bolt.hasRestrike && bolt.age >= bolt.restrikeTime && bolt.age < bolt.restrikeTime + 0.07) {
+            const rProg = (bolt.age - bolt.restrikeTime) / 0.07;
+            const pulse = Math.sin(rProg * Math.PI) * 0.65;
+            intensityCurve = Math.min(1, intensityCurve + pulse);
+          }
+
+          const coreAlpha = Math.min(0.96, intensityCurve * 0.95);
+          const sheathAlpha = Math.min(0.55, intensityCurve * 0.42);
+          const haloAlpha = Math.min(0.22, intensityCurve * 0.16);
+
+          // Ana kanal: dış hale -> kılıf -> daralan çekirdek
+          drawTaperedPolyline(
+            bolt.mainPoints,
+            bolt.mainWidth * 4.2,
+            bolt.mainWidth * 1.4,
+            `rgb(${palette.channelHalo})`,
+            haloAlpha
+          );
+          drawTaperedPolyline(
+            bolt.mainPoints,
+            bolt.mainWidth * 2.1,
+            bolt.mainWidth * 0.7,
+            `rgb(${palette.channelSheath})`,
+            sheathAlpha
+          );
+          drawTaperedPolyline(
+            bolt.mainPoints,
+            bolt.mainWidth,
+            bolt.mainWidth * 0.28,
+            `rgb(${palette.channelCore})`,
+            coreAlpha
+          );
+
+          // İkincil ve üçüncül çatallar
+          for (let b = 0; b < bolt.branches.length; b++) {
+            const branch = bolt.branches[b];
+            const bAlphaFactor = branch.alphaScale * (branch.level === 2 ? 1 : 0.75);
+
+            // Çatallar ana kanaldan biraz daha hızlı söner
+            const branchDecay = Math.max(0, intensityCurve - progress * 0.22);
+
+            drawTaperedPolyline(
+              branch.points,
+              branch.width * 2.6,
+              branch.width * 0.6,
+              `rgb(${palette.channelSheath})`,
+              branchDecay * sheathAlpha * bAlphaFactor * 0.75
+            );
+            drawTaperedPolyline(
+              branch.points,
+              branch.width,
+              branch.width * 0.18,
+              `rgb(${palette.channelCore})`,
+              branchDecay * coreAlpha * bAlphaFactor
+            );
+          }
+        }
+      }
+
+      /**
+       * Hafif yağmur damlalarını günceller ve çizer.
+       */
+      function updateAndRenderRain(dt, palette) {
+        if (!state.rainEnabled || state.rainDrops.length === 0) return;
+
+        ctx.save();
+        ctx.strokeStyle = `rgb(${palette.cloudGlow})`;
+        ctx.lineWidth = 1;
+        ctx.lineCap = 'round';
+
+        const rainBoost = 0.7 + state.intensity * 0.75;
+
+        for (let i = 0; i < state.rainDrops.length; i++) {
+          const drop = state.rainDrops[i];
+          drop.x += drop.wind * rainBoost * dt;
+          drop.y += drop.speed * rainBoost * dt;
+
+          if (drop.y > state.height + 20) {
+            drop.y = -drop.length;
+            drop.x = Math.random() * (state.width + 120);
+          }
+          if (drop.x < -40) {
+            drop.x = state.width + 20;
+          }
+
+          const dynamicAlpha = Math.min(0.36, drop.alpha + state.ambientFlash * 0.12);
+          ctx.globalAlpha = dynamicAlpha;
+          ctx.beginPath();
+          ctx.moveTo(drop.x, drop.y);
+          ctx.lineTo(drop.x + drop.wind * 0.025, drop.y + drop.length);
+          ctx.stroke();
+        }
+
+        ctx.restore();
+      }
+
+      /**
+       * Otomatik fırtına zamanlayıcısını yoğunluk ayarına göre yönetir.
+       */
+      function updateAutoStorm(now) {
+        if (!state.autoStorm) return;
+
+        if (now >= state.nextAutoStrikeTime) {
+          createLightningBolt();
+
+          // Yoğunluk 0.1 iken ~6.5s, 1.0 iken ~1.1s ortalama aralık
+          const meanIntervalMs = 6800 - state.intensity * 5500;
+          const jitter = 0.55 + Math.random() * 0.95;
+          state.nextAutoStrikeTime = now + Math.max(750, meanIntervalMs * jitter);
+        }
+      }
+
+      /**
+       * Ana animasyon döngüsü.
+       */
+      function animate(now) {
+        const dt = Math.min(0.05, Math.max(0.001, (now - state.lastFrameTime) / 1000));
+        state.lastFrameTime = now;
+
+        updateAutoStorm(now);
+
+        // Aktif yıldırım yaşlarını ilerlet
+        for (let i = 0; i < state.activeBolts.length; i++) {
+          state.activeBolts[i].age += dt;
+        }
+
+        // Çevresel gökyüzü ışık sönümlemesi
+        const decayRate = 2.6 + (1 - state.intensity) * 1.4;
+        state.ambientFlash = Math.max(0, state.ambientFlash - decayRate * dt);
+
+        const palette = getTonePalette();
+        renderAtmosphere(palette);
+        renderBolts(palette);
+        updateAndRenderRain(dt, palette);
+
+        requestAnimationFrame(animate);
+      }
+
+      /**
+       * Kullanıcı arayüzü durum senkronizasyonu
+       */
+      function updateAutoStormUI() {
+        if (state.autoStorm) {
+          autoStormBtn.className =
+            'p-2.5 rounded-xl bg-sky-950/75 hover:bg-sky-900/75 active:scale-[0.98] text-sky-200 text-xs font-medium border border-sky-600/60 transition flex items-center justify-center gap-1.5';
+          autoStormIndicator.className = 'w-2 h-2 rounded-full bg-sky-400';
+        } else {
+          autoStormBtn.className =
+            'p-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/75 active:scale-[0.98] text-slate-400 text-xs font-medium border border-slate-800 transition flex items-center justify-center gap-1.5';
+          autoStormIndicator.className = 'w-2 h-2 rounded-full bg-slate-600';
+        }
+      }
+
+      function updateRainUI() {
+        rainLabel.textContent = state.rainEnabled ? 'Yağmur: Açık' : 'Yağmur: Kapalı';
+        rainToggleBtn.classList.toggle('text-slate-200', state.rainEnabled);
+        rainToggleBtn.classList.toggle('text-slate-400', !state.rainEnabled);
+      }
+
+      function updateSoundUI() {
+        soundLabel.textContent = state.soundEnabled ? 'Ses: Açık' : 'Ses: Kapalı';
+        soundToggleBtn.className = state.soundEnabled
+          ? 'p-2.5 rounded-xl bg-emerald-950/60 hover:bg-emerald-900/60 text-emerald-200 text-xs border border-emerald-700/50 transition flex items-center justify-center gap-1.5'
+          : 'p-2.5 rounded-xl bg-slate-900/70 hover:bg-slate-800/75 text-slate-300 text-xs border border-slate-800 transition flex items-center justify-center gap-1.5';
+      }
+
+      function updateToneUI() {
+        const toneText = document.getElementById('toneLabel');
+        if (state.tone === 'cool') {
+          toneText.textContent = 'Soğuk Fırtına';
+          toneCoolBtn.className = 'py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-100 transition';
+          toneWarmBtn.className = 'py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 transition';
+        } else {
+          toneText.textContent = 'Ilık Kapalı Gri';
+          toneWarmBtn.className = 'py-1.5 rounded-lg text-[11px] font-medium bg-slate-800 text-slate-100 transition';
+          toneCoolBtn.className = 'py-1.5 rounded-lg text-[11px] font-medium text-slate-400 hover:text-slate-200 transition';
+        }
+      }
+
+      // Olay dinleyicileri
+      window.addEventListener('resize', resizeCanvas);
+
+      // Tuvale tıklama veya dokunma ile o yatay bölgede yıldırım düşürme
+      canvas.addEventListener('pointerdown', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const clickX = e.clientX - rect.left;
+        const startJitterX = Math.max(
+          state.width * 0.05,
+          Math.min(state.width * 0.95, clickX + (Math.random() - 0.5) * state.width * 0.14)
+        );
+        createLightningBolt(startJitterX, clickX);
+      });
+
+      togglePanelBtn.addEventListener('click', () => {
+        state.panelOpen = !state.panelOpen;
+        controlPanel.classList.toggle('hidden', !state.panelOpen);
+        togglePanelBtn.setAttribute('aria-expanded', String(state.panelOpen));
+        togglePanelLabel.textContent = state.panelOpen ? 'Kontroller' : 'Paneli Aç';
+        panelStatusDot.className = state.panelOpen
+          ? 'w-2 h-2 rounded-full bg-sky-400/80'
+          : 'w-2 h-2 rounded-full bg-slate-500';
+      });
+
+      triggerStrikeBtn.addEventListener('click', () => {
+        createLightningBolt();
+      });
+
+      autoStormBtn.addEventListener('click', () => {
+        state.autoStorm = !state.autoStorm;
+        if (state.autoStorm) {
+          state.nextAutoStrikeTime = performance.now() + 350;
+        }
+        updateAutoStormUI();
+      });
+
+      rainToggleBtn.addEventListener('click', () => {
+        state.rainEnabled = !state.rainEnabled;
+        updateRainUI();
+      });
+
+      soundToggleBtn.addEventListener('click', () => {
+        thunderAudio.setEnabled(!state.soundEnabled);
+      });
+
+      intensitySlider.addEventListener('input', (e) => {
+        const val = Number(e.target.value);
+        state.intensity = Math.max(0.1, Math.min(1, val / 100));
+        intensityValue.textContent = `${val}%`;
+      });
+
+      toneCoolBtn.addEventListener('click', () => {
+        state.tone = 'cool';
+        updateToneUI();
+      });
+
+      toneWarmBtn.addEventListener('click', () => {
+        state.tone = 'warm';
+        updateToneUI();
+      });
+
+      // Başlatma
+      window.addEventListener('load', () => {
+        resizeCanvas();
+        updateAutoStormUI();
+        updateRainUI();
+        updateSoundUI();
+        updateToneUI();
+
+        // İlk açılışta kısa süre sonra doğal bir çakma başlat
+        state.nextAutoStrikeTime = performance.now() + 500;
+        state.lastFrameTime = performance.now();
+        requestAnimationFrame(animate);
+      });
+    })();
+  </script>
+</body>
+</html>
